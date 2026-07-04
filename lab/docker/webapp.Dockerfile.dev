@@ -1,18 +1,17 @@
 # Dev-mode image only -- runs `next dev`, not a production build.
-# Adjust the copied package.json paths to match your actual pnpm workspace members.
+# Build context is the repo root (.. from lab/). The bind mount in
+# docker-compose.yml overlays /app so edits on the host hot-reload here.
 FROM node:20-alpine
 WORKDIR /app
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+COPY apps/web/idam2-demo-finance/package.json \
+     apps/web/idam2-demo-finance/package-lock.json \
+     apps/web/idam2-demo-finance/
 
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
-COPY apps/web/package.json apps/web/package.json
-# COPY packages/<shared-pkg>/package.json packages/<shared-pkg>/package.json
+RUN npm ci --prefix apps/web/idam2-demo-finance
 
-RUN pnpm install --frozen-lockfile
+COPY apps/web/idam2-demo-finance apps/web/idam2-demo-finance
 
-COPY . .
-
-WORKDIR /app/apps/web
+WORKDIR /app/apps/web/idam2-demo-finance
 EXPOSE 3000
-CMD ["pnpm", "dev", "--", "-p", "3000", "-H", "0.0.0.0"]
+CMD ["npm", "run", "dev", "--", "--webpack", "-p", "3000", "-H", "0.0.0.0"]

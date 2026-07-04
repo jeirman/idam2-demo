@@ -5,7 +5,21 @@ policy enforcement point, OPA as policy decision point, sidecar-per-workload,
 in front of both the webapp and the MCP server.
 
 > Want the same call graph without kind/Tilt in the loop? See `COMPOSE.md` --
-> same policy, same tests, plain `docker compose up`.
+> same policy, same tests, plain `docker compose up` (webapp only today;
+> MCP is behind `--profile mcp` once `services/mcp-server` exists).
+
+## Current repo status
+
+| Workload    | App location                         | docker compose | kind / Tilt |
+|-------------|--------------------------------------|----------------|-------------|
+| Webapp      | `apps/web/idam2-demo-finance/`       | **Ready**      | Scaffolded (Tiltfile still references old `apps/web` paths) |
+| MCP server  | `services/mcp-server/` (not built yet) | **Optional** (`--profile mcp`) | Scaffolded |
+
+The web UI is a Next.js app under `idam2-demo-finance`. The MCP server
+package has not been implemented yet -- only `services/mcp-server/readme.md`.
+Compose and k8s manifests already include Envoy + OPA for MCP; they stay
+off until you add the app and enable the MCP profile (compose) or deploy
+the mcp-server workload (k8s).
 
 ## Pod pattern
 
@@ -47,18 +61,35 @@ echo "127.0.0.1 coffer.local" | sudo tee -a /etc/hosts
 tilt up
 ```
 
-Tilt builds the dev images, applies the manifests, and live-syncs
-`apps/web` / `apps/mcp-server` straight into the running containers --
-editing locally triggers Next.js Fast Refresh inside the pod with no
-rebuild/redeploy. `tilt down` tears the workloads back down; `kind delete
-cluster --name coffer-lab` nukes the whole thing.
+Tilt builds the dev images, applies the manifests, and live-syncs source
+into the running containers. Today the webapp under
+`apps/web/idam2-demo-finance/` is the app that exists; the Tiltfile still
+syncs `apps/web` as a directory (which covers that subfolder). The MCP
+server sync target (`apps/mcp-server`) does not match the intended
+`services/mcp-server/` layout yet -- update `Tiltfile` and
+`docker/mcp-server.Dockerfile.dev` when you add the MCP package.
+
+`tilt down` tears the workloads back down; `kind delete cluster --name
+coffer-lab` nukes the whole thing.
 
 Direct port-forwards (also set up by the Tiltfile):
 
 - webapp dev server: `localhost:3000` (bypasses Envoy -- use this for pure
   frontend iteration; use `coffer.local` below to test through the PEP)
-- MCP server: `localhost:8000`
+- MCP server: `localhost:8000` (once `services/mcp-server` is implemented)
 - Postgres: `localhost:5432`
+
+### Bringing up MCP (compose)
+
+See `COMPOSE.md` for the full checklist. In short: add a Node (or other)
+server under `services/mcp-server/` with `package.json` + `npm run dev` on
+port 8000, then:
+
+```bash
+docker compose --profile mcp up --build
+```
+
+MCP through its PEP: `http://localhost:8081`.
 
 ## Faking tokens for policy testing
 

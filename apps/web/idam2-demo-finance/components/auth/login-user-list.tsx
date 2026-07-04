@@ -1,8 +1,8 @@
 "use client";
 
-import { useTransition } from "react";
+import { useFormStatus } from "react-dom";
 import { loginAsUser } from "@/app/actions/auth";
-import { DEMO_USERS } from "@/lib/auth/constants";
+import { DEMO_USERS, type DemoUser } from "@/lib/auth/constants";
 import { cn } from "@/lib/utils";
 
 const AVATAR_GRADIENTS: Record<string, string> = {
@@ -11,15 +11,36 @@ const AVATAR_GRADIENTS: Record<string, string> = {
   tomas: "from-[#3E6FA0] to-[#2C4F73]",
 };
 
+function UserLoginButton({ user }: { user: DemoUser }) {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className={cn(
+        "flex w-full cursor-pointer items-center gap-3 rounded-coffer-md border border-coffer-border bg-coffer-surface-alt px-4 py-3 text-left transition-[border-color,background,transform] duration-150",
+        "hover:border-coffer-green hover:bg-coffer-green-soft/40",
+        "disabled:cursor-not-allowed disabled:opacity-60",
+      )}
+    >
+      <div
+        className={cn(
+          "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br font-mono text-[11px] font-semibold text-white",
+          AVATAR_GRADIENTS[user.id],
+        )}
+      >
+        {user.initials}
+      </div>
+      <div className="min-w-0">
+        <div className="text-sm font-semibold text-coffer-text">{user.name}</div>
+        <div className="text-xs text-coffer-text-tertiary">{user.role}</div>
+      </div>
+    </button>
+  );
+}
+
 export function LoginUserList() {
-  const [isPending, startTransition] = useTransition();
-
-  function handleSelectUser(userId: string) {
-    startTransition(() => {
-      loginAsUser(userId);
-    });
-  }
-
   return (
     <div className="flex min-h-screen items-center justify-center bg-coffer-bg p-6 [background-image:radial-gradient(900px_500px_at_50%_-10%,rgba(30,111,92,0.06),transparent_60%)]">
       <div className="w-full max-w-md rounded-coffer-lg border border-coffer-border-soft bg-coffer-surface p-8 shadow-coffer-card">
@@ -59,33 +80,9 @@ export function LoginUserList() {
         <ul className="m-0 flex list-none flex-col gap-2 p-0">
           {DEMO_USERS.map((user) => (
             <li key={user.id}>
-              <button
-                type="button"
-                disabled={isPending}
-                onClick={() => handleSelectUser(user.id)}
-                className={cn(
-                  "flex w-full cursor-pointer items-center gap-3 rounded-coffer-md border border-coffer-border bg-coffer-surface-alt px-4 py-3 text-left transition-[border-color,background,transform] duration-150",
-                  "hover:border-coffer-green hover:bg-coffer-green-soft/40",
-                  "disabled:cursor-not-allowed disabled:opacity-60",
-                )}
-              >
-                <div
-                  className={cn(
-                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br font-mono text-[11px] font-semibold text-white",
-                    AVATAR_GRADIENTS[user.id],
-                  )}
-                >
-                  {user.initials}
-                </div>
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold text-coffer-text">
-                    {user.name}
-                  </div>
-                  <div className="text-xs text-coffer-text-tertiary">
-                    {user.role}
-                  </div>
-                </div>
-              </button>
+              <form action={loginAsUser.bind(null, user.id)}>
+                <UserLoginButton user={user} />
+              </form>
             </li>
           ))}
         </ul>
