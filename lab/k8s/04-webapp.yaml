@@ -1,0 +1,79 @@
+# The webapp container has NO Service of its own -- the Service below targets
+# Envoy's 8080, so port 3000 is only reachable at localhost inside the pod.
+# That's what makes Envoy a real PEP rather than decoration: there is no path
+# into the app that skips it.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webapp
+  namespace: coffer
+  labels:
+    app: webapp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: webapp
+  template:
+    metadata:
+      labels:
+        app: webapp
+    spec:
+      containers:
+        - name: webapp
+          image: coffer-webapp:dev # built + live-synced by Tilt, see ../Tiltfile
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          env:
+            - name: PORT
+              value: "3000"
+            - name: DATABASE_URL
+              value: postgresql://coffer:coffer-dev-password@postgres.coffer.svc.cluster.local:5432/coffer
+
+        - name: envoy
+          image: envoyproxy/envoy:v1.31-latest
+          args: ["-c", "/etc/envoy/envoy.yaml"]
+          ports:
+            - name: pep
+              containerPort: 8080
+          volumeMounts:
+            - name: envoy-config
+              mountPath: /etc/envoy
+
+        - name: opa
+          image: openpolicyagent/opa:latest-envoy
+          args:
+            - "run"
+            - "--server"
+            - "--config-file=/etc/opa/config.yaml"
+            - "/etc/opa/policy.rego"
+          ports:
+            - name: opa-grpc
+              containerPort: 9191
+            - name: opa-api
+              containerPort: 8181
+          volumeMounts:
+            - name: opa-policy
+              mountPath: /etc/opa
+
+      volumes:
+        - name: envoy-config
+          configMap:
+            name: envoy-config-webapp
+        - name: opa-policy
+          configMap:
+            name: opa-policy
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: webapp
+  namespace: coffer
+spec:
+  selector:
+    app: webapp
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080 # Envoy, not the app -- all traffic must pass the PEP

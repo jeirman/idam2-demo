@@ -1,0 +1,17 @@
+# Placeholder assuming a Node/TS MCP server (e.g. @modelcontextprotocol/sdk).
+# Swap the run command if yours uses a different entrypoint/dev script.
+FROM node:20-alpine
+WORKDIR /app
+
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY apps/mcp-server/package.json apps/mcp-server/package.json
+
+RUN pnpm install --frozen-lockfile
+
+COPY . .
+
+WORKDIR /app/apps/mcp-server
+EXPOSE 8000
+CMD ["pnpm", "dev"]

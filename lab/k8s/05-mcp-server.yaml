@@ -1,0 +1,89 @@
+# Same PEP/PDP pattern as webapp.yaml, applied to the MCP server. This is the
+# pod that will carry a SPIFFE SVID in phase 2 -- an agentic caller's identity
+# gets checked here exactly the same way a human's does at the webapp pod.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-server
+  namespace: coffer
+  labels:
+    app: mcp-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mcp-server
+  template:
+    metadata:
+      labels:
+        app: mcp-server
+        # PHASE 2: add spiffe.io/spire-managed-identity: "true" (or your
+        # chosen selector label) once SPIRE registration entries key off it.
+    spec:
+      # PHASE 2: serviceAccountName: mcp-server  -- give it its own SA now so
+      # the SPIRE registration entry (k8s:sa:mcp-server) already resolves.
+      containers:
+        - name: mcp-server
+          image: coffer-mcp-server:dev # built + live-synced by Tilt
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          env:
+            - name: PORT
+              value: "8000"
+            - name: DATABASE_URL
+              value: postgresql://coffer:coffer-dev-password@postgres.coffer.svc.cluster.local:5432/coffer
+
+        - name: envoy
+          image: envoyproxy/envoy:v1.31-latest
+          args: ["-c", "/etc/envoy/envoy.yaml"]
+          ports:
+            - name: pep
+              containerPort: 8080
+          volumeMounts:
+            - name: envoy-config
+              mountPath: /etc/envoy
+            # PHASE 2: mount the SPIFFE Workload API socket here too, e.g.
+            # - name: spire-agent-socket
+            #   mountPath: /run/spire/sockets
+            #   readOnly: true
+
+        - name: opa
+          image: openpolicyagent/opa:latest-envoy
+          args:
+            - "run"
+            - "--server"
+            - "--config-file=/etc/opa/config.yaml"
+            - "/etc/opa/policy.rego"
+          ports:
+            - name: opa-grpc
+              containerPort: 9191
+          volumeMounts:
+            - name: opa-policy
+              mountPath: /etc/opa
+
+      volumes:
+        - name: envoy-config
+          configMap:
+            name: envoy-config-mcp
+        - name: opa-policy
+          configMap:
+            name: opa-policy
+        # PHASE 2:
+        # - name: spire-agent-socket
+        #   hostPath:
+        #     path: /run/spire/sockets
+        #     type: Directory
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-server
+  namespace: coffer
+spec:
+  selector:
+    app: mcp-server
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080

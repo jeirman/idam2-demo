@@ -1,0 +1,138 @@
+name: coffer-lab
+
+# Network layout stands in for pod boundaries + k8s Services:
+#   edge-webapp / edge-mcp   -- published to the host, only Envoy sits here
+#   webapp-internal          -- envoy-webapp + opa-webapp + webapp, nothing else
+#   mcp-internal             -- envoy-mcp + opa-mcp + mcp-server, nothing else
+#   data                     -- postgres + whichever app containers need it
+# Nothing but each group's own Envoy is reachable from outside the group,
+# which is the same "no path around the PEP" property the k8s Service (only
+# targeting Envoy's port) was enforcing.
+networks:
+  edge-webapp:
+  edge-mcp:
+  webapp-internal:
+  mcp-internal:
+  data:
+
+volumes:
+  postgres-data:
+  # Named volumes "protect" these paths from the bind mount below: Docker
+  # seeds them from the image's node_modules on first run, then leaves them
+  # alone -- so a bind-mounted host repo (which may have no node_modules, or
+  # host-platform ones) never clobbers what `pnpm install` built in the image.
+  webapp_root_node_modules:
+  webapp_app_node_modules:
+  mcp_root_node_modules:
+  mcp_app_node_modules:
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: coffer
+      POSTGRES_PASSWORD: coffer-dev-password
+      POSTGRES_DB: coffer
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U coffer"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - data
+    ports:
+      - "5432:5432" # host convenience (psql client etc.) -- not part of the PEP path
+
+  # ---- webapp "pod" -------------------------------------------------------
+  opa-webapp:
+    image: openpolicyagent/opa:latest-envoy
+    command:
+      - run
+      - --server
+      - --config-file=/etc/opa/config.yaml
+      - /etc/opa/policy.rego
+    volumes:
+      - ./opa/policy.rego:/etc/opa/policy.rego:ro
+      - ./opa/config.yaml:/etc/opa/config.yaml:ro
+    networks:
+      - webapp-internal
+    # Optional debug convenience, off by default to keep envoy the only door in:
+    # ports: ["8181:8181"]   # OPA's REST/decision API
+
+  webapp:
+    build:
+      context: .
+      dockerfile: docker/webapp.Dockerfile.dev
+    environment:
+      PORT: "3000"
+      DATABASE_URL: postgresql://coffer:coffer-dev-password@postgres:5432/coffer
+    volumes:
+      - .:/app
+      - webapp_root_node_modules:/app/node_modules
+      - webapp_app_node_modules:/app/apps/web/node_modules
+    networks:
+      - webapp-internal
+      - data
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  envoy-webapp:
+    image: envoyproxy/envoy:v1.31-latest
+    volumes:
+      - ./envoy/envoy-webapp.yaml:/etc/envoy/envoy.yaml:ro
+    networks:
+      - edge-webapp
+      - webapp-internal
+    ports:
+      - "8080:8080"
+    depends_on:
+      - opa-webapp
+      - webapp
+
+  # ---- mcp-server "pod" ---------------------------------------------------
+  opa-mcp:
+    image: openpolicyagent/opa:latest-envoy
+    command:
+      - run
+      - --server
+      - --config-file=/etc/opa/config.yaml
+      - /etc/opa/policy.rego
+    volumes:
+      - ./opa/policy.rego:/etc/opa/policy.rego:ro
+      - ./opa/config.yaml:/etc/opa/config.yaml:ro
+    networks:
+      - mcp-internal
+
+  mcp-server:
+    build:
+      context: .
+      dockerfile: docker/mcp-server.Dockerfile.dev
+    environment:
+      PORT: "8000"
+      DATABASE_URL: postgresql://coffer:coffer-dev-password@postgres:5432/coffer
+    volumes:
+      - .:/app
+      - mcp_root_node_modules:/app/node_modules
+      - mcp_app_node_modules:/app/apps/mcp-server/node_modules
+    networks:
+      - mcp-internal
+      - data
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  envoy-mcp:
+    image: envoyproxy/envoy:v1.31-latest
+    volumes:
+      - ./envoy/envoy-mcp.yaml:/etc/envoy/envoy.yaml:ro
+    networks:
+      - edge-mcp
+      - mcp-internal
+    ports:
+      - "8081:8080"
+    depends_on:
+      - opa-mcp
+      - mcp-server

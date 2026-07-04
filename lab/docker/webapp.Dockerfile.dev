@@ -1,0 +1,18 @@
+# Dev-mode image only -- runs `next dev`, not a production build.
+# Adjust the copied package.json paths to match your actual pnpm workspace members.
+FROM node:20-alpine
+WORKDIR /app
+
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY apps/web/package.json apps/web/package.json
+# COPY packages/<shared-pkg>/package.json packages/<shared-pkg>/package.json
+
+RUN pnpm install --frozen-lockfile
+
+COPY . .
+
+WORKDIR /app/apps/web
+EXPOSE 3000
+CMD ["pnpm", "dev", "--", "-p", "3000", "-H", "0.0.0.0"]

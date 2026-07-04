@@ -1,0 +1,41 @@
+# tilt up  -- from the repo root, with kind-config.yaml's cluster already created.
+#
+# live_update syncs local source straight into the running container without a
+# rebuild/redeploy cycle. For Next.js/`next dev` this is enough to get Fast
+# Refresh while the pod sits behind its Envoy+OPA sidecars inside the cluster --
+# so you're testing real auth behaviour against your live dev server, not a
+# stale image.
+
+k8s_yaml([
+    'k8s/00-namespace.yaml',
+    'k8s/01-postgres.yaml',
+    'k8s/02-opa-policy-configmap.yaml',
+    'k8s/03-envoy-configmap.yaml',
+    'k8s/04-webapp.yaml',
+    'k8s/05-mcp-server.yaml',
+    'k8s/06-ingress.yaml',
+])
+
+docker_build(
+    'coffer-webapp',
+    context='.',
+    dockerfile='docker/webapp.Dockerfile.dev',
+    live_update=[
+        sync('apps/web', '/app/apps/web'),
+        run('pnpm install --frozen-lockfile', trigger=['apps/web/package.json', 'pnpm-lock.yaml']),
+    ],
+)
+
+docker_build(
+    'coffer-mcp-server',
+    context='.',
+    dockerfile='docker/mcp-server.Dockerfile.dev',
+    live_update=[
+        sync('apps/mcp-server', '/app/apps/mcp-server'),
+        run('pnpm install --frozen-lockfile', trigger=['apps/mcp-server/package.json', 'pnpm-lock.yaml']),
+    ],
+)
+
+k8s_resource('webapp', port_forwards='3000:8080', labels=['app'])
+k8s_resource('mcp-server', port_forwards='8000:8080', labels=['app'])
+k8s_resource('postgres', port_forwards='5432:5432', labels=['data'])
