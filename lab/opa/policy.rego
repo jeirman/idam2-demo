@@ -29,11 +29,29 @@ allow if {
     not startswith(http_request.path, "/mcp/tools/transfer")
 }
 
-# Decodes the bearer JWT Envoy forwards unmodified. No signature verification
-# here yet -- add io.jwt.decode_verify with your issuer's JWKS before this
-# leaves "demo lab" status.
+# Decodes bearer JWT from Authorization header or coffer-token cookie.
+# Authorization wins when both are present (useful for curl testing).
+# No signature verification here yet -- add io.jwt.decode_verify with your
+# issuer's JWKS before this leaves "demo lab" status.
 claims := payload if {
+    bearer_token
+    [_, payload, _] := io.jwt.decode(bearer_token)
+} else := payload if {
+    cookie_token
+    [_, payload, _] := io.jwt.decode(cookie_token)
+}
+
+bearer_token := encoded if {
     auth_header := http_request.headers.authorization
     [_, encoded] := split(auth_header, " ")
-    [_, payload, _] := io.jwt.decode(encoded)
+}
+
+cookie_token := encoded if {
+    parts := split(http_request.headers.cookie, ";")
+    some part in parts
+    trimmed := trim_space(part)
+    prefix := "coffer-token="
+    startswith(trimmed, prefix)
+    encoded := substring(trimmed, count(prefix), -1)
+    encoded != ""
 }

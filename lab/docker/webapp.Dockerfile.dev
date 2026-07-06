@@ -12,6 +12,9 @@ RUN npm ci --prefix apps/web/idam2-demo-finance
 
 COPY apps/web/idam2-demo-finance apps/web/idam2-demo-finance
 
+COPY lab/docker/webapp-entrypoint.sh /usr/local/bin/webapp-entrypoint.sh
+RUN chmod +x /usr/local/bin/webapp-entrypoint.sh
+
 WORKDIR /app/apps/web/idam2-demo-finance
 EXPOSE 3000
-CMD ["npm", "run", "dev", "--", "--webpack", "-p", "3000", "-H", "0.0.0.0"]
+ENTRYPOINT ["/usr/local/bin/webapp-entrypoint.sh"]

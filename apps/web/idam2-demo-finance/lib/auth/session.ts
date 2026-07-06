@@ -1,9 +1,11 @@
 import { cookies } from "next/headers";
 import {
-  getDemoUser,
+  PROFILE_TOKEN_COOKIE,
   SESSION_COOKIE,
   type DemoUser,
 } from "@/lib/auth/constants";
+import { getDemoUser, getTestProfile } from "@/lib/auth/profiles";
+import { mintTestJwt } from "@/lib/auth/token";
 
 export async function getSessionUserId(): Promise<string | null> {
   const cookieStore = await cookies();
@@ -23,22 +25,26 @@ export async function getSessionUser(): Promise<DemoUser | null> {
 }
 
 export async function createSession(userId: string): Promise<void> {
-  const user = getDemoUser(userId);
-  if (!user) {
+  const profile = getTestProfile(userId);
+  if (!profile) {
     throw new Error("Invalid user");
   }
 
   const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE, userId, {
+  const cookieOptions = {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    sameSite: "lax" as const,
     maxAge: 60 * 60 * 24 * 7,
     path: "/",
-  });
+  };
+
+  cookieStore.set(SESSION_COOKIE, userId, cookieOptions);
+  cookieStore.set(PROFILE_TOKEN_COOKIE, mintTestJwt(profile), cookieOptions);
 }
 
 export async function clearSession(): Promise<void> {
   const cookieStore = await cookies();
   cookieStore.delete({ name: SESSION_COOKIE, path: "/" });
+  cookieStore.delete({ name: PROFILE_TOKEN_COOKIE, path: "/" });
 }

@@ -1,0 +1,64 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model UserProfile {
+  email          String    @id
+  lastLoginDate  DateTime? @map("last_login_date") @db.Timestamptz
+  displayName    String    @map("display_name")
+  profilePicture String?   @map("profile_picture")
+  active         Boolean?  @default(true)
+
+  @@map("user_profiles")
+}
+
+model Vendor {
+  vendorId   BigInt  @id @default(autoincrement()) @map("vendor_id")
+  vendorName String? @map("vendor_name")
+  countryId  String? @map("country_id")
+
+  @@map("vendors")
+}
+
+model Currency {
+  currencyCode String @id @map("currency_code")
+  currencyName String @map("currency_name")
+
+  @@map("currencies")
+}
+
+model Country {
+  countryId   String @id @map("country_id")
+  countryName String @map("country_name")
+
+  @@map("countries")
+}
+
+model Invoice {
+  invoiceId          BigInt    @id @default(autoincrement()) @map("invoice_id")
+  status             String?   @default("submitted")
+  submittedBy        String    @map("submitted_by")
+  vendorId           BigInt?   @map("vendor_id")
+  amount             Decimal?  @db.Decimal
+  currency           String?
+  entryDate          DateTime? @map("entry_date") @db.Timestamptz
+  dueDate            DateTime? @map("due_date") @db.Date
+  submissionCountry  String?   @map("submission_country")
+
+  @@map("invoices")
+}
+
+model InvoiceAuditLog {
+  auditId       BigInt   @id @default(autoincrement()) @map("audit_id")
+  auditDatetime DateTime @default(now()) @map("audit_datetime") @db.Timestamptz
+  auditAction   String?  @map("audit_action")
+  auditBy       String?  @map("audit_by")
+  auditOn       BigInt?  @map("audit_on")
+
+  @@map("invoices_audit_log")
+}

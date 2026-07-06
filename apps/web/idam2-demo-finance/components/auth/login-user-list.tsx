@@ -2,7 +2,7 @@
 
 import { useFormStatus } from "react-dom";
 import { loginAsUser } from "@/app/actions/auth";
-import { DEMO_USERS, type DemoUser } from "@/lib/auth/constants";
+import type { DemoUser } from "@/lib/auth/constants";
 import { cn } from "@/lib/utils";
 
 const AVATAR_GRADIENTS: Record<string, string> = {
@@ -40,7 +40,7 @@ function UserLoginButton({ user }: { user: DemoUser }) {
   );
 }
 
-export function LoginUserList() {
+export function LoginUserList({ users }: { users: DemoUser[] }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-coffer-bg p-6 [background-image:radial-gradient(900px_500px_at_50%_-10%,rgba(30,111,92,0.06),transparent_60%)]">
       <div className="w-full max-w-md rounded-coffer-lg border border-coffer-border-soft bg-coffer-surface p-8 shadow-coffer-card">
@@ -78,7 +78,7 @@ export function LoginUserList() {
         </div>
 
         <ul className="m-0 flex list-none flex-col gap-2 p-0">
-          {DEMO_USERS.map((user) => (
+          {users.map((user) => (
             <li key={user.id}>
               <form action={loginAsUser.bind(null, user.id)}>
                 <UserLoginButton user={user} />

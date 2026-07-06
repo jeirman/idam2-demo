@@ -1,37 +1,22 @@
 export const SESSION_COOKIE = "coffer-session";
+export const PROFILE_TOKEN_COOKIE = "coffer-token";
 
 export type DemoUser = {
   id: string;
   name: string;
   role: string;
+  department: string;
+  job_title: string;
+  country: string;
   initials: string;
 };
 
-export const DEMO_USERS: DemoUser[] = [
-  {
-    id: "maya",
-    name: "Maya Chen",
-    role: "Finance Approver",
-    initials: "MC",
-  },
-  {
-    id: "priya",
-    name: "Priya Shah",
-    role: "Accounts Payable Clerk",
-    initials: "PS",
-  },
-  {
-    id: "tomas",
-    name: "Tomas Weber",
-    role: "Finance Analyst",
-    initials: "TW",
-  },
-];
+export const DEMO_USER_IDS = ["maya", "priya", "tomas"] as const;
 
-export function getDemoUser(userId: string): DemoUser | undefined {
-  return DEMO_USERS.find((user) => user.id === userId);
-}
+export type DemoUserId = (typeof DEMO_USER_IDS)[number];
 
-export function isValidSessionUserId(userId: string | undefined): boolean {
-  return Boolean(userId && getDemoUser(userId));
+export function isValidSessionUserId(
+  userId: string | undefined,
+): userId is DemoUserId {
+  return Boolean(userId && DEMO_USER_IDS.includes(userId as DemoUserId));
 }

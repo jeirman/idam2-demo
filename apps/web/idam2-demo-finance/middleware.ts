@@ -7,7 +7,10 @@ export function middleware(request: NextRequest) {
   const sessionUserId = request.cookies.get(SESSION_COOKIE)?.value;
   const isAuthenticated = isValidSessionUserId(sessionUserId);
 
-  if (pathname.startsWith("/home") && !isAuthenticated) {
+  if (
+    (pathname.startsWith("/home") || pathname.startsWith("/vendors")) &&
+    !isAuthenticated
+  ) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
@@ -19,5 +22,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/home/:path*", "/login"],
+  matcher: ["/home/:path*", "/vendors", "/vendors/:path*", "/login"],
 };
